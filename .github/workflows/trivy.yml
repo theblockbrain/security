@@ -1,0 +1,46 @@
+name: trivy
+
+on:
+  workflow_call:
+    inputs:
+      container-name:
+        required: true
+        type: string
+      environment:
+        required: false
+        type: string
+        # staging,production
+        default: staging
+      branch:
+        required: false
+        type: string
+        default: main
+    secrets:
+      iam-role:
+        required: true
+
+jobs:
+  call-workflow-passing-data:
+    uses: theblockbrain/workflows/.github/workflows/gitflow.yml@feat/PDEV-1745
+    with:
+      container-name: ${{ inputs.container-name }}
+      environment: ${{ inputs.environment }}
+      branch: ${{ inputs.branch }}
+    secrets:
+      iam-role: ${{ secrets.iam-role }}
+  image-scanning:
+    needs: call-workflow-passing-data
+    runs-on: ubuntu-24.04
+    steps:
+      - name: tst_output
+        run: |
+          echo "${{ needs.call-workflow-passing-data.outputs.image-name }}"
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ needs.call-workflow-passing-data.outputs.image-name }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
